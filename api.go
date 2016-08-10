@@ -19,53 +19,62 @@ type responseSelf struct {
 	ID string `json:"id"`
 }
 
-func connectAndListen(token string) {
+func startRTMSession(config *rtmConfig) {
+	response := callRTMStart(config)
+	url := parseRTMStartResponse(response)
 
-	connection := connect(token)
-
-	if connection.StatusCode != 200 {
-		log.Fatal(connection.Status)
-	}
-
-	resp := listen(connection)
-
-	parse(resp)
-
+	fmt.Printf("URL: %s", url)
 }
 
-func connect(token string) (resp *http.Response) {
+func callRTMStart(config *rtmConfig) (response *http.Response) {
 
-	tokenURL := fmt.Sprintf("https://slack.com/api/rtm.start?token=%s", token)
+	tokenURL := fmt.Sprintf(config.URL, config.Token)
 
-	resp, err := http.Get(tokenURL)
+	response, err := http.Get(tokenURL)
 
 	if err != nil {
-		log.Fatal("Merda!")
+		log.Fatal(err)
 	}
+
+	fmt.Println("Connected.")
+
+	if response.StatusCode != 200 {
+		log.Fatalf("HTTP Error %d - %s", response.StatusCode, response.Status)
+	}
+
+	fmt.Println("Start succeeded.")
 
 	return
 }
 
-func listen(resp *http.Response) (respObj responseRtmStart) {
+func parseRTMStartResponse(response *http.Response) (url string) {
+	body, err := ioutil.ReadAll(response.Body)
 
-	body, err := ioutil.ReadAll(resp.Body)
-
-	resp.Body.Close()
-
-	if err != nil {
-		log.Fatal("Merda")
-	}
-
-	err = json.Unmarshal(body, &respObj)
+	response.Body.Close()
 
 	if err != nil {
-		log.Fatal("Merda")
+		log.Fatalf("Response Parser Error: %s", err)
 	}
+
+	fmt.Println("Data received.")
+
+	var jsonResponse responseRtmStart
+
+	jsonErr := json.Unmarshal(body, &jsonResponse)
+
+	if jsonErr != nil {
+		log.Fatalf("JSON Parser Error:  %s", jsonErr)
+	}
+
+	fmt.Println("JSON decode succeeded.")
+
+	if !jsonResponse.Ok {
+		log.Fatalf("Slack Error: %s", jsonResponse.Error)
+	}
+
+	url = jsonResponse.URL
+
+	fmt.Println("Oh right!")
 
 	return
-
-}
-
-func parse(resp responseRtmStart) {
-	log.Fatal(resp.Error)
 }
