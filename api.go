@@ -8,7 +8,11 @@ import (
 	"net/http"
 )
 
-type responseRtmStart struct {
+type slack struct {
+	jsonResponse
+}
+
+type jsonResponse struct {
 	Ok    bool         `json:"ok"`
 	Error string       `json:"error"`
 	URL   string       `json:"url"`
@@ -19,14 +23,14 @@ type responseSelf struct {
 	ID string `json:"id"`
 }
 
-func startRTMSession(config *rtmConfig) {
-	response := callRTMStart(config)
-	url := parseRTMStartResponse(response)
+func (api *slack) startRTMSession(config *rtmConfig) {
+	response := api.callRTMStart(config)
+	url := api.parseRTMStartResponse(response)
 
 	fmt.Printf("URL: %s", url)
 }
 
-func callRTMStart(config *rtmConfig) (response *http.Response) {
+func (api *slack) callRTMStart(config *rtmConfig) (response *http.Response) {
 
 	tokenURL := fmt.Sprintf(config.URL, config.Token)
 
@@ -47,7 +51,7 @@ func callRTMStart(config *rtmConfig) (response *http.Response) {
 	return
 }
 
-func parseRTMStartResponse(response *http.Response) (url string) {
+func (api *slack) parseRTMStartResponse(response *http.Response) (url string) {
 	body, err := ioutil.ReadAll(response.Body)
 
 	response.Body.Close()
@@ -58,23 +62,29 @@ func parseRTMStartResponse(response *http.Response) (url string) {
 
 	fmt.Println("Data received.")
 
-	var jsonResponse responseRtmStart
+	decoded := api.parseJSON(body)
 
-	jsonErr := json.Unmarshal(body, &jsonResponse)
-
-	if jsonErr != nil {
-		log.Fatalf("JSON Parser Error:  %s", jsonErr)
+	if !decoded.Ok {
+		if decoded.Error == "invalid_auth" {
+			log.Fatal("Authentication Failure.")
+		}
+		log.Fatalf("Slack Error: %s", decoded.Error)
 	}
 
-	fmt.Println("JSON decode succeeded.")
-
-	if !jsonResponse.Ok {
-		log.Fatalf("Slack Error: %s", jsonResponse.Error)
-	}
-
-	url = jsonResponse.URL
+	url = decoded.URL
 
 	fmt.Println("Oh right!")
 
 	return
+}
+
+func (api *slack) parseJSON(body []byte) (result *jsonResponse) {
+
+	err := json.Unmarshal(body, &result)
+
+	if err != nil {
+		log.Fatalf("JSON Parser Error: %s", err)
+	}
+
+	return result
 }

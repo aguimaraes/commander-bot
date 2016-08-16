@@ -22,5 +22,6 @@ func main() {
 
 	config.Token = os.Args[1]
 
-	startRTMSession(config)
+	slack := new(slack)
+	slack.startRTMSession(config)
 }
